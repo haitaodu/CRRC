@@ -42,6 +42,7 @@ public class RealTimeDataController extends BaseController{
     @GetMapping(value = "/GetRealTimeData/{id}")
     public Map<String,Object> getRealTimeData(@PathVariable Integer id){
         try{
+            long startTime=System.currentTimeMillis();
             List<Workpiece> workpieceList = workpieceService.getWorkpieceListByPlantId(id);
             if (workpieceList.size() == 0)
             {
@@ -65,6 +66,9 @@ public class RealTimeDataController extends BaseController{
                     voltageList,
                     soundList, image);
             data.SerialNumbers = pass_noList;
+
+            long endTime=System.currentTimeMillis();
+            System.out.println(endTime-startTime);
             return this.setJson(200, "Success", data);
         }catch(Exception e){
             e.printStackTrace();
