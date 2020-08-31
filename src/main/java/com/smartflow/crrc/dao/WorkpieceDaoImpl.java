@@ -66,6 +66,11 @@ public class WorkpieceDaoImpl implements WorkpieceDao{
         query.setParameter("weldseamid", weldseamid);
         query.setFirstResult(0);
         query.setMaxResults(1);
-        return (Image) query.getSingleResult();
+        List list = query.getResultList();
+        if(list.size() == 0 ){
+            return null;
+        }else{
+            return (Image) list.get(0);
+        }
     }
 }

@@ -10,7 +10,10 @@ import com.smartflow.crrc.dto.OnePassMeasurementRecordDTO;
 import com.smartflow.crrc.dto.RealTimeDataOutputDTO;
 import com.smartflow.crrc.model.*;
 import com.smartflow.crrc.service.WorkpieceService;
+import com.smartflow.crrc.util.GzipUtil;
 import lombok.extern.log4j.Log4j2;
+import net.sf.json.JSONArray;
+import net.sf.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.util.CollectionUtils;
@@ -57,7 +60,7 @@ public class RealTimeDataController extends BaseController{
             List<Sound> soundList = workpieceService.getSound(workpieceid, weldseamid);
             Image image = workpieceService.getImage(workpieceid, weldseamid);
 
-            List<String> pass_noList = workpieceList.stream().filter(w -> !w.getWorkpieceid().equals(workpieceid)).map(w -> w.getWeldseamid()).collect(Collectors.toList());
+            List<String> pass_noList = workpieceList.stream().filter(w -> w.getWorkpieceid().equals(workpieceid)).map(w -> w.getWeldseamid()).collect(Collectors.toList());
 
             workpiece = workpieceService.getWorkpiece(workpieceid, weldseamid);
             data = GetUnitMeasurementHistoryByPartSerialAndPassNo(workpiece,
@@ -65,7 +68,9 @@ public class RealTimeDataController extends BaseController{
                     voltageList,
                     soundList, image);
             data.SerialNumbers = pass_noList;
-            return this.setJson(200, "Success", data);
+            //GZIP压缩数据
+            String compressData = GzipUtil.compress(JSONObject.fromObject(data).toString());
+            return this.setJson(200, "Success", compressData);
         }catch(Exception e){
             e.printStackTrace();
             log.error(e);
