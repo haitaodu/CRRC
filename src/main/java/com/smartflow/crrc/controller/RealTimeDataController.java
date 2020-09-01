@@ -1,11 +1,4 @@
 package com.smartflow.crrc.controller;
-import java.math.BigDecimal;
-import java.text.SimpleDateFormat;
-import java.util.*;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Future;
-import java.util.stream.Collectors;
-
 import com.smartflow.crrc.dto.OnePassMeasurementRecordDTO;
 import com.smartflow.crrc.dto.RealTimeDataOutputDTO;
 import com.smartflow.crrc.model.*;
@@ -18,7 +11,15 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import java.math.BigDecimal;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
 
+/**
+ * @author haita
+ */
 @Log4j2
 @RestController
 @RequestMapping("/RealTimeData")
@@ -66,7 +67,6 @@ public class RealTimeDataController extends BaseController{
                     voltageList,
                     soundList, image);
             data.SerialNumbers = pass_noList;
-
             long endTime=System.currentTimeMillis();
             System.out.println(endTime-startTime);
             return this.setJson(200, "Success", data);
@@ -79,8 +79,7 @@ public class RealTimeDataController extends BaseController{
 
     public RealTimeDataOutputDTO GetUnitMeasurementHistoryByPartSerialAndPassNo
             (Workpiece workpiece, List<String> pass_noList,
-             List<Current> currentList, List<Voltage> voltageList, List<Sound> soundList, Image image)
-    {
+             List<Current> currentList, List<Voltage> voltageList, List<Sound> soundList, Image image) throws InterruptedException {
         RealTimeDataOutputDTO data = new RealTimeDataOutputDTO();
         if (CollectionUtils.isEmpty(currentList))
         {
@@ -103,12 +102,12 @@ public class RealTimeDataController extends BaseController{
 
         int currentListSize = currentList.size();
         SimpleDateFormat sdf = new SimpleDateFormat("hh:mm:ss");
+        CountDownLatch countDownLatchCurrent = new CountDownLatch(currentListSize-2);
+        System.out.println(currentListSize);
             for (int i = 0; i < currentListSize; i++)
             {
-                CountDownLatch countDownLatch = new CountDownLatch(currentListSize);
                 int finalI = i;
             poolTaskExecutor.submit(() -> {
-
                     int currentLength = currentList.get(finalI).getCurrent().split("\\|").length - 1;
                     for (int j = 0; j < currentLength; j++)
                     {
@@ -117,82 +116,82 @@ public class RealTimeDataController extends BaseController{
                     }
                     totalCurrent.append(currentList.get(finalI).getCurrent());
                     totalVoltage.append(voltageList.get(finalI).getVoltage());
-                countDownLatch.countDown();
-                });
-                //int currentLength = currentList.get(i).getCurrent().split("\\|").length - 1;
-                //for (int j = 0; j < currentLength; j++)
-                //{
-                //    currentTimePoints.add(sdf.format(currentList.get(i).getLtime()));
-                //    voltageTimePoints.add(sdf.format(voltageList.get(i).getLtime()));
-                //}
-                //totalCurrent.append(currentList.get(i).getCurrent());
-                //totalVoltage.append(voltageList.get(i).getVoltage());
-            }
-        String[] dataCurrent;
-        dataCurrent = totalCurrent.toString().split("\\|");
-        List<BigDecimal> dataCurrentDecimal = new ArrayList<>();
-        for (String s : dataCurrent)
-        {
-            if (StringUtils.isEmpty(s))
-            {
-                dataCurrentDecimal.add(new BigDecimal(0));
-            }
-            else
-            {
-                dataCurrentDecimal.add(new BigDecimal(s).multiply(CurrentCoefficient));
-            }
-        }
-        onePassNoData.Current_TimePoint = currentTimePoints;
-        onePassNoData.Data_Current = dataCurrentDecimal;
+                countDownLatchCurrent.countDown();
 
-            String[] dataVoltage = totalVoltage.toString().split("\\|");
-            List<BigDecimal> dataVoltageDecimal = new ArrayList<>();
-            for (String s : dataVoltage)
-            {
-                if (StringUtils.isEmpty(s))
-                {
-                    dataVoltageDecimal.add(new BigDecimal(0));//
-                }
-                else
-                {
-                    dataVoltageDecimal.add(new BigDecimal(s).multiply(VoltageCoefficient));
-                }
+                System.out.println("开始分割电压电流");
+                });
             }
-            onePassNoData.Voltage_TimePoint = voltageTimePoints;
-            onePassNoData.Data_Voltage = dataVoltageDecimal;
+        countDownLatchCurrent.await();
+        System.out.println("分割电压电流完成");
         List<BigDecimal> dataSoundDecimal = new ArrayList<>();
         if (!CollectionUtils.isEmpty(soundList))
         {
             int soundListSize = soundList.size();
+            CountDownLatch countDownLatchSound=new CountDownLatch(soundListSize-2);
             for (Sound sound : soundList)
             {
-                int soundSplitLength = sound.getSound().split("\\|").length - 1;
-                CountDownLatch countDownLatch=new CountDownLatch(soundSplitLength);
                 poolTaskExecutor.submit(() -> {
-                for (int j = 0; j < soundSplitLength; j++)
-                {
-                    soundTimePoints.add(sdf.format(sound.getLtime()));
-                }
-                totalSound.append(sound.getSound());
-                    countDownLatch.countDown();
-            });
+                    int soundSplitLength = sound.getSound().split("\\|").length - 1;
+                    for (int j = 0; j < soundSplitLength; j++)
+                    {
+                        soundTimePoints.add(sdf.format(sound.getLtime()));
+                    }
+                    totalSound.append(sound.getSound());
+                    countDownLatchSound.countDown();
+                    System.out.println("开始分割声音");
+                });
             }
-            String[] dataSound = totalSound.substring(0, totalSound.length() - 1).split("\\|");
-            for (String s : dataSound)
-            {
-                if (StringUtils.isEmpty(s))
-                {
-                    dataSoundDecimal.add(new BigDecimal(0));
-                }
-                else
-                {
-                    dataSoundDecimal.add(new BigDecimal(s));
-                }
-            }
+           countDownLatchSound.await();
 
+            System.out.println("声音分割完成");
+            CountDownLatch countDownLatchSplit=new CountDownLatch(3);
+            System.out.println("电流分割");
+            poolTaskExecutor.submit(() -> {
+                String[] dataCurrent = totalCurrent.toString().split("\\|");
+                List<BigDecimal> dataCurrentDecimal = new ArrayList<>();
+                for (String s : dataCurrent) {
+                    if (StringUtils.isEmpty(s)) {
+                        dataCurrentDecimal.add(new BigDecimal(0));
+                    } else {
+                        dataCurrentDecimal.add(new BigDecimal(s).multiply(CurrentCoefficient));
+                    }
+                }
+                onePassNoData.Current_TimePoint = currentTimePoints;
+                onePassNoData.Data_Current = dataCurrentDecimal;
+                countDownLatchSplit.countDown();
+            });
+            System.out.println("电压分割");
+            poolTaskExecutor.submit(() -> {
+                        String[] dataVoltage = totalVoltage.toString().split("\\|");
+                        List<BigDecimal> dataVoltageDecimal = new ArrayList<>();
+                        for (String s : dataVoltage) {
+                            if (StringUtils.isEmpty(s)) {
+                                dataVoltageDecimal.add(new BigDecimal(0));//
+                            } else {
+                                dataVoltageDecimal.add(new BigDecimal(s).multiply(VoltageCoefficient));
+                            }
+                        }
+                        onePassNoData.Voltage_TimePoint = voltageTimePoints;
+                        onePassNoData.Data_Voltage = dataVoltageDecimal;
+                        countDownLatchSplit.countDown();
+                    });
+            System.out.println("声音分割");
+            poolTaskExecutor.submit(() -> {
+                String[] dataSound = totalSound.substring(0, totalSound.length() - 1).split("\\|");
+                for (String s : dataSound) {
+                    if (StringUtils.isEmpty(s)) {
+                        dataSoundDecimal.add(new BigDecimal(0));
+                    } else {
+                        dataSoundDecimal.add(new BigDecimal(s));
+                    }
+                }
+                onePassNoData.Sound_TimePoint = soundTimePoints;
+                onePassNoData.Data_Sound = dataSoundDecimal;
+                countDownLatchSplit.countDown();
+            });
+         countDownLatchSplit.await();
         }
-        onePassNoData.Sound_TimePoint = soundTimePoints;
-        onePassNoData.Data_Sound = dataSoundDecimal;
+
 
         if (image != null) {
             onePassNoData.ImagePath = "data:image/png;base64," + image.getImage();
