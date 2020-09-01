@@ -106,7 +106,7 @@ public class RealTimeDataController extends BaseController{
 
         int currentListSize = currentList.size();
         SimpleDateFormat sdf = new SimpleDateFormat("hh:mm:ss");
-        CountDownLatch countDownLatchCurrent = new CountDownLatch(currentListSize-2);
+        CountDownLatch countDownLatchCurrent = new CountDownLatch(currentListSize-10);
         System.out.println(currentListSize);
             for (int i = 0; i < currentListSize; i++)
             {
@@ -131,7 +131,7 @@ public class RealTimeDataController extends BaseController{
         if (!CollectionUtils.isEmpty(soundList))
         {
             int soundListSize = soundList.size();
-            CountDownLatch countDownLatchSound=new CountDownLatch(soundListSize-2);
+            CountDownLatch countDownLatchSound=new CountDownLatch(soundListSize-10);
             for (Sound sound : soundList)
             {
                 poolTaskExecutor.submit(() -> {
