@@ -16,11 +16,11 @@ public class GlobalConfig {
     public ThreadPoolTaskExecutor defaultThreadPool(){
         ThreadPoolTaskExecutor threadPoolTaskExecutor = new ThreadPoolTaskExecutor();
         //核心线程数量
-        threadPoolTaskExecutor.setCorePoolSize(50);
+        threadPoolTaskExecutor.setCorePoolSize(100);
         //最大线程数量
         threadPoolTaskExecutor.setMaxPoolSize(200);
         //队列中最大任务数
-        threadPoolTaskExecutor.setQueueCapacity(50);
+        threadPoolTaskExecutor.setQueueCapacity(80);
         //线程名称前缀
         threadPoolTaskExecutor.setThreadNamePrefix("ThreadPool-");
         //当达到最大线程数时如何处理新任务

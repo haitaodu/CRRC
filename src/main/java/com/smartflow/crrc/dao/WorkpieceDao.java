@@ -27,7 +27,7 @@ public interface WorkpieceDao {
      * @param weldseamid
      * @return
      */
-    public List<Current> getCurrent(String workpieceid, String weldseamid);
+    public List getCurrent(String workpieceid, String weldseamid);
     /**
      * 根据工件号和焊缝号获取电压
      * @param workpieceid

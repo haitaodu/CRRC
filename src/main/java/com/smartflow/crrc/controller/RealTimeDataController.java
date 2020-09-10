@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -55,25 +56,42 @@ public class RealTimeDataController extends BaseController{
             RealTimeDataOutputDTO data = new RealTimeDataOutputDTO();
             String workpieceid = workpiece.getWorkpieceid();
             String weldseamid = workpiece.getWeldseamid();
-            List<Current> currentList = workpieceService.getCurrent(workpieceid, weldseamid);
-
-            List<Voltage> voltageList = workpieceService.getVoltage(workpieceid, weldseamid);
-            List<Sound> soundList = workpieceService.getSound(workpieceid, weldseamid);
-            Image image = workpieceService.getImage(workpieceid, weldseamid);
+            CountDownLatch countDownLatchDao=new CountDownLatch(4);
+            AtomicReference<List<Current>> currentList = new AtomicReference<>();
+            AtomicReference<List<Voltage>> voltageList = new AtomicReference<>();
+            AtomicReference<List<Sound>> soundList = new AtomicReference<>();
+            AtomicReference<Image> image = new AtomicReference<>();
+            poolTaskExecutor.execute(()->{
+                currentList.set(workpieceService.getCurrent(workpieceid, weldseamid));
+                countDownLatchDao.countDown();
+            });
+            poolTaskExecutor.execute(()->{
+                voltageList.set(workpieceService.getVoltage(workpieceid, weldseamid));
+                countDownLatchDao.countDown();
+            });
+            poolTaskExecutor.execute(()->{
+                soundList.set(workpieceService.getSound(workpieceid, weldseamid));
+                countDownLatchDao.countDown();
+            });
+            poolTaskExecutor.execute(()->{
+                image.set(workpieceService.getImage(workpieceid, weldseamid));
+                countDownLatchDao.countDown();
+            });
+            countDownLatchDao.await();
 
             List<String> pass_noList = workpieceList.stream().filter(w -> !w.getWorkpieceid().equals(workpieceid)).map(w -> w.getWeldseamid()).collect(Collectors.toList());
 
             workpiece = workpieceService.getWorkpiece(workpieceid, weldseamid);
             data = GetUnitMeasurementHistoryByPartSerialAndPassNo(workpiece,
-                    pass_noList, currentList,
-                    voltageList,
-                    soundList, image);
+                    pass_noList, currentList.get(),
+                    voltageList.get(),
+                    soundList.get(), image.get());
             data.SerialNumbers = pass_noList;
             long endTime=System.currentTimeMillis();
             System.out.println(endTime-startTime);
             //GZIP压缩数据
-            String compressData = GzipUtil.compress(JSONObject.fromObject(data).toString());
-            return this.setJson(200, "Success", compressData);
+            //String compressData = GzipUtil.compress(JSONObject.fromObject(data).toString());
+            return this.setJson(200, "Success", data);
         }catch(Exception e){
             e.printStackTrace();
             log.error(e);
@@ -106,48 +124,44 @@ public class RealTimeDataController extends BaseController{
 
         int currentListSize = currentList.size();
         SimpleDateFormat sdf = new SimpleDateFormat("hh:mm:ss");
-        CountDownLatch countDownLatchCurrent = new CountDownLatch(currentListSize-10);
-        System.out.println(currentListSize);
-            for (int i = 0; i < currentListSize; i++)
-            {
-                int finalI = i;
-            poolTaskExecutor.submit(() -> {
-                    int currentLength = currentList.get(finalI).getCurrent().split("\\|").length - 1;
-                    for (int j = 0; j < currentLength; j++)
-                    {
-                        currentTimePoints.add(sdf.format(currentList.get(finalI).getLtime()));
-                        voltageTimePoints.add(sdf.format(voltageList.get(finalI).getLtime()));
-                    }
-                    totalCurrent.append(currentList.get(finalI).getCurrent());
-                    totalVoltage.append(voltageList.get(finalI).getVoltage());
-                countDownLatchCurrent.countDown();
+        CountDownLatch countDownLatchTime = new CountDownLatch(2);
 
-                System.out.println("开始分割电压电流");
+        poolTaskExecutor.execute(()-> {
+                    for (int i = 0; i < currentListSize; i++) {
+                        int currentLength = currentList.get(i).getCurrent().split("\\|").length - 1;
+                        for (int j = 0; j < currentLength; j++) {
+                            currentTimePoints.add(sdf.format(currentList.get(i).getLtime()));
+                            voltageTimePoints.add(sdf.format(voltageList.get(i).getLtime()));
+                        }
+                        totalCurrent.append(currentList.get(i).getCurrent());
+                        totalVoltage.append(voltageList.get(i).getVoltage());
+
+                        countDownLatchTime.countDown();
+
+                    }
                 });
-            }
-        countDownLatchCurrent.await();
-        System.out.println("分割电压电流完成");
+
+
         List<BigDecimal> dataSoundDecimal = new ArrayList<>();
         if (!CollectionUtils.isEmpty(soundList))
         {
             int soundListSize = soundList.size();
-            CountDownLatch countDownLatchSound=new CountDownLatch(soundListSize-10);
-            for (Sound sound : soundList)
-            {
-                poolTaskExecutor.submit(() -> {
-                    int soundSplitLength = sound.getSound().split("\\|").length - 1;
-                    for (int j = 0; j < soundSplitLength; j++)
-                    {
-                        soundTimePoints.add(sdf.format(sound.getLtime()));
-                    }
-                    totalSound.append(sound.getSound());
-                    countDownLatchSound.countDown();
-                    System.out.println("开始分割声音");
-                });
-            }
-           countDownLatchSound.await();
+            poolTaskExecutor.execute(()-> {
+                        for (Sound sound : soundList) {
 
-            System.out.println("声音分割完成");
+                            int soundSplitLength = sound.getSound().split("\\|").length - 1;
+                            for (int j = 0; j < soundSplitLength; j++) {
+                                soundTimePoints.add(sdf.format(sound.getLtime()));
+                            }
+                            totalSound.append(sound.getSound());
+
+
+
+                        }
+                        countDownLatchTime.countDown();
+                    });
+            countDownLatchTime.await();
+
             CountDownLatch countDownLatchSplit=new CountDownLatch(3);
             System.out.println("电流分割");
             poolTaskExecutor.submit(() -> {
