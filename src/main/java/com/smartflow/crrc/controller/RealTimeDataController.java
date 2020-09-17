@@ -3,9 +3,7 @@ import com.smartflow.crrc.dto.OnePassMeasurementRecordDTO;
 import com.smartflow.crrc.dto.RealTimeDataOutputDTO;
 import com.smartflow.crrc.model.*;
 import com.smartflow.crrc.service.WorkpieceService;
-import com.smartflow.crrc.util.GzipUtil;
 import lombok.extern.log4j.Log4j2;
-import net.sf.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.util.CollectionUtils;
@@ -89,8 +87,7 @@ public class RealTimeDataController extends BaseController{
             data.SerialNumbers = pass_noList;
             long endTime=System.currentTimeMillis();
             System.out.println(endTime-startTime);
-            //GZIP压缩数据
-            //String compressData = GzipUtil.compress(JSONObject.fromObject(data).toString());
+
             return this.setJson(200, "Success", data);
         }catch(Exception e){
             e.printStackTrace();
@@ -99,7 +96,7 @@ public class RealTimeDataController extends BaseController{
         }
     }
 
-    public RealTimeDataOutputDTO GetUnitMeasurementHistoryByPartSerialAndPassNo
+    private RealTimeDataOutputDTO GetUnitMeasurementHistoryByPartSerialAndPassNo
             (Workpiece workpiece, List<String> pass_noList,
              List<Current> currentList, List<Voltage> voltageList, List<Sound> soundList, Image image) throws InterruptedException {
         RealTimeDataOutputDTO data = new RealTimeDataOutputDTO();
@@ -115,9 +112,9 @@ public class RealTimeDataController extends BaseController{
         onePassNoData.Pass_No = workpiece.getWeldseamid();
         onePassNoData.Start_Time = current.getLtime();
 
-        StringBuffer totalCurrent = new StringBuffer();
-        StringBuffer totalVoltage = new StringBuffer();
-        StringBuffer totalSound = new StringBuffer();
+        StringBuilder totalCurrent = new StringBuilder();
+        StringBuilder totalVoltage = new StringBuilder();
+        StringBuilder totalSound = new StringBuilder();
         List<String> currentTimePoints = new ArrayList<>();
         List<String> voltageTimePoints = new ArrayList<>();
         List<String> soundTimePoints = new ArrayList<>();
@@ -224,7 +221,7 @@ public class RealTimeDataController extends BaseController{
     }
 
 
-    public RealTimeDataOutputDTO GetNoData()
+    private RealTimeDataOutputDTO GetNoData()
     {
         RealTimeDataOutputDTO realTimeDataOutputDTO = new RealTimeDataOutputDTO();
         realTimeDataOutputDTO.setCurrentMax(new BigDecimal(0));
@@ -248,8 +245,4 @@ public class RealTimeDataController extends BaseController{
         return realTimeDataOutputDTO;
     }
 
-    private OnePassMeasurementRecordDTO splitCurrent(List<Current> currentList,List<Voltage> voltages,
-                                                     OnePassMeasurementRecordDTO onePassMeasurementRecordDTO) {
-    return new OnePassMeasurementRecordDTO();
-    }
 }

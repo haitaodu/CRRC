@@ -6,11 +6,12 @@ import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
 import javax.persistence.Table;
+import java.io.Serializable;
 import java.util.Date;
 @Data
 @Entity
 @Table(name = "image")
-public class Image {
+public class Image implements Serializable {
     @Id
     @GeneratedValue
     private Integer id;
